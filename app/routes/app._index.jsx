@@ -1,4 +1,5 @@
-import { Page, Layout, Text } from "@shopify/polaris";
+import { Page, Layout, Text, Thumbnail, BlockStack } from "@shopify/polaris";
+import { ClipboardCheckFilledIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
 
 export default function Index() {
@@ -7,9 +8,12 @@ export default function Index() {
       <TitleBar title="Product Feedback"></TitleBar>
       <Layout>
         <Layout.Section>
-          <Text as="h2" variant="headingMd">
-            App Installed!Add the app blocks in your shopify store
+          <Text as="h1" variant="headingLg" alignment="center">
+            App Installed! Add the app blocks in your shopify store..
           </Text>
+          <BlockStack inlineAlign="center">
+            <Thumbnail source={ClipboardCheckFilledIcon} size="large" />
+          </BlockStack>
         </Layout.Section>
       </Layout>
     </Page>

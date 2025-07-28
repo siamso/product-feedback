@@ -3,7 +3,7 @@
 client_id = "dafcfede9a06a6e009b52d7d704a102f"
 name = "product-feedback"
 handle = "product-feedback-2"
-application_url = "https://middle-writes-performer-neighbors.trycloudflare.com"
+application_url = "https://6b8d586c5906.ngrok-free.app"
 embedded = true
 
 [build]
@@ -23,10 +23,15 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "write_products,read_products"
+scopes = "write_products,read_products,write_app_proxy"
+
+[app_proxy]
+url = "https://6b8d586c5906.ngrok-free.app/proxy"
+subpath = "proxy"
+prefix = "apps"
 
 [auth]
-redirect_urls = ["https://middle-writes-performer-neighbors.trycloudflare.com/auth/callback", "https://middle-writes-performer-neighbors.trycloudflare.com/auth/shopify/callback", "https://middle-writes-performer-neighbors.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://6b8d586c5906.ngrok-free.app/auth/callback", "https://decor-other-glucose-walls.trycloudflare.com/auth/shopify/callback", "https://decor-other-glucose-walls.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
