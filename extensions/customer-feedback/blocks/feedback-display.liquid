@@ -1,0 +1,231 @@
+{% liquid
+  assign product_id = block.settings.product_id | default: product.id
+%}
+<div class="feedback-display-container" data-product-id="{{ product_id }}">
+  <h3>Customer Feedback</h3>
+  <div id="feedback-list" class="feedback-list">
+    <div class="loading">Loading feedback...</div>
+  </div>
+  <div id="no-feedback" class="no-feedback" style="display: none;">
+    <p>No feedback submitted yet for this product.</p>
+  </div>
+</div>
+
+<style>
+.feedback-display-container {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #f9f9f9;
+}
+
+.feedback-display-container h3 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: #333;
+  font-size: 1.5em;
+}
+
+.feedback-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.feedback-item {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  border-left: 4px solid #007bff;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.feedback-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.feedback-name {
+  font-weight: bold;
+  color: #333;
+  font-size: 1.1em;
+}
+
+.feedback-email {
+  color: #666;
+  font-size: 0.9em;
+}
+
+.feedback-date {
+  color: #888;
+  font-size: 0.8em;
+  font-style: italic;
+}
+
+.feedback-comment {
+  color: #444;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+.loading {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 20px;
+}
+
+.no-feedback {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 20px;
+}
+
+.error-message {
+  color: #dc3545;
+  text-align: center;
+  padding: 20px;
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+}
+
+@media (max-width: 600px) {
+  .feedback-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .feedback-date {
+    align-self: flex-end;
+  }
+}
+</style>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const container = document.querySelector(".feedback-display-container");
+  if (!container) {
+    console.error("Feedback container not found");
+    return;
+  }
+
+  const productId = container.dataset.productId;
+  const feedbackList = document.querySelector("#feedback-list");
+  const noFeedback = document.querySelector("#no-feedback");
+
+  console.log('Fetching feedback for productId:', productId);
+
+  if (!productId) {
+    feedbackList.innerHTML = '<div class="error-message">Product ID not specified</div>';
+    noFeedback.style.display = "none";
+    console.error("Product ID is missing");
+    return;
+  }
+
+  // Fetch feedback for this product
+  fetch(`/apps/proxy?productId=${encodeURIComponent(productId)}`, {
+    headers: {
+      'ngrok-skip-browser-warning': true
+    }
+  })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(data => {
+      console.log('Received data:', data);
+      if (data && typeof data === 'object') {
+        if (data.success && Array.isArray(data.feedback)) {
+          if (data.feedback.length > 0) {
+            displayFeedback(data.feedback);
+          } else {
+            showNoFeedback();
+          }
+        } else {
+          feedbackList.innerHTML = `<div class="error-message">Error: ${data.error || 'Invalid response format'}</div>`;
+          noFeedback.style.display = "none";
+          console.error('Invalid response:', data);
+        }
+      } else {
+        throw new Error('Response is not a valid JSON object');
+      }
+    })
+    .catch(error => {
+      console.error("Error fetching feedback:", error);
+      feedbackList.innerHTML = '<div class="error-message">Error loading feedback. Please try again later.</div>';
+      noFeedback.style.display = "none";
+    });
+});
+
+function displayFeedback(feedbackArray) {
+  const feedbackList = document.querySelector("#feedback-list");
+  const noFeedback = document.querySelector("#no-feedback");
+  
+  noFeedback.style.display = "none";
+  feedbackList.style.display = "block";
+  feedbackList.innerHTML = "";
+
+  feedbackArray.forEach(feedback => {
+    console.log('Processing feedback item:', feedback);
+    const feedbackItem = document.createElement("div");
+    feedbackItem.className = "feedback-item";
+    
+    const date = new Date(feedback.createdAt);
+    const formattedDate = isNaN(date.getTime())
+      ? 'Invalid date'
+      : date.toLocaleDateString() + " " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+    
+    feedbackItem.innerHTML = `
+      <div class="feedback-header">
+        <div>
+          <div class="feedback-name">${escapeHtml(feedback.name || '')}</div>
+          <div class="feedback-email">${escapeHtml(feedback.email || '')}</div>
+        </div>
+        <div class="feedback-date">${formattedDate}</div>
+      </div>
+      <div class="feedback-comment">${escapeHtml(feedback.comment || '')}</div>
+    `;
+    
+    feedbackList.appendChild(feedbackItem);
+  });
+}
+
+function showNoFeedback() {
+  const feedbackList = document.querySelector("#feedback-list");
+  const noFeedback = document.querySelector("#no-feedback");
+  
+  feedbackList.style.display = "none";
+  noFeedback.style.display = "block";
+}
+
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+</script>
+
+{% schema %}
+{
+  "name": "Feedback Display",
+  "target": "section",
+  "settings": [
+    {
+      "type": "text",
+      "id": "product_id",
+      "label": "Product ID",
+      "info": "Enter the Product ID to display feedback for (leave blank to use current product)"
+    }
+  ]
+}
+{% endschema %}

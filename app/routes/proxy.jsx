@@ -89,7 +89,10 @@ export async function loader({ request }) {
       orderBy: { createdAt: "desc" },
     });
 
-    return json({ success: true, feedback });
+    console.log("Found feedback:", feedback);
+    const response = json({ success: true, feedback });
+    console.log("Response:", response);
+    return response;
   } catch (error) {
     console.error("Loader error:", error);
     return json({ success: false, error: error.message }, { status: 500 });
