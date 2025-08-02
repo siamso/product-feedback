@@ -22,7 +22,7 @@ export async function action({ request }) {
     }
 
     const requestData = await request.json();
-    const { productId, name, email, comment } = requestData;
+    const { productId, name, email, comment, recaptchaResponse } = requestData;
 
     if (!productId || !name || !email || !comment) {
       return json(
@@ -34,6 +34,40 @@ export async function action({ request }) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return json(
         { success: false, error: "Invalid email format" },
+        { status: 400 },
+      );
+    }
+
+    if (!recaptchaResponse) {
+      return json(
+        { success: false, error: "reCAPTCHA verification required" },
+        { status: 400 },
+      );
+    }
+
+    const recaptchaVerification = await fetch(
+      "https://www.google.com/recaptcha/api/siteverify",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          secret: `${process.env.RECAPTCHA_SERVER_KEY}`,
+          response: recaptchaResponse,
+        }),
+      },
+    );
+
+    const recaptchaResult = await recaptchaVerification.json();
+
+    if (!recaptchaResult.success) {
+      console.error("reCAPTCHA verification failed:", recaptchaResult);
+      return json(
+        {
+          success: false,
+          error: "reCAPTCHA verification failed. Please try again.",
+        },
         { status: 400 },
       );
     }
@@ -76,6 +110,9 @@ export async function loader({ request }) {
 
     const url = new URL(request.url);
     const productId = url.searchParams.get("productId");
+    const page = parseInt(url.searchParams.get("page")) || 1;
+    const limit = 3;
+    const offset = (page - 1) * limit;
 
     if (!productId) {
       return json(
@@ -84,13 +121,33 @@ export async function loader({ request }) {
       );
     }
 
+    const totalComments = await prisma.Feedback.count({
+      where: {
+        productId: productId,
+      },
+    });
+
+    const totalPages = Math.ceil(totalComments / limit);
+
     const feedback = await prisma.Feedback.findMany({
-      where: { productId: String(productId) },
-      orderBy: { createdAt: "desc" },
+      where: {
+        productId: productId,
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: limit,
+      skip: offset,
     });
 
     console.log("Found feedback:", feedback);
-    const response = json({ success: true, feedback });
+    const response = json({
+      success: true,
+      feedback,
+      totalPages,
+      currentPage: page,
+      totalComments,
+    });
     console.log("Response:", response);
     return response;
   } catch (error) {

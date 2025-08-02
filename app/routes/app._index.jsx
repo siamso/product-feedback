@@ -1,6 +1,14 @@
-import { Page, Layout, Text, Thumbnail, BlockStack } from "@shopify/polaris";
+import {
+  Page,
+  Layout,
+  Text,
+  Thumbnail,
+  BlockStack,
+  Button,
+} from "@shopify/polaris";
 import { ClipboardCheckFilledIcon } from "@shopify/polaris-icons";
 import { TitleBar } from "@shopify/app-bridge-react";
+import { Link } from "@remix-run/react";
 
 export default function Index() {
   return (
@@ -13,6 +21,13 @@ export default function Index() {
           </Text>
           <BlockStack inlineAlign="center">
             <Thumbnail source={ClipboardCheckFilledIcon} size="large" />
+          </BlockStack>
+        </Layout.Section>
+        <Layout.Section>
+          <BlockStack gap="3">
+            <Button>
+              <Link to="/app/productComments">View Products</Link>
+            </Button>
           </BlockStack>
         </Layout.Section>
       </Layout>

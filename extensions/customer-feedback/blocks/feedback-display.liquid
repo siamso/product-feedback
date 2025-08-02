@@ -9,6 +9,16 @@
   <div id="no-feedback" class="no-feedback" style="display: none;">
     <p>No feedback submitted yet for this product.</p>
   </div>
+  <div id="pagination" class="pagination" style="display: none;">
+    <div class="pagination-info">
+      <span id="pagination-text">Showing 0 of 0 comments</span>
+    </div>
+    <div class="pagination-controls">
+      <button id="prev-page" class="pagination-btn" disabled>Previous</button>
+      <span id="page-indicator">Page 1 of 1</span>
+      <button id="next-page" class="pagination-btn" disabled>Next</button>
+    </div>
+  </div>
 </div>
 
 <style>
@@ -32,6 +42,7 @@
   display: flex;
   flex-direction: column;
   gap: 15px;
+  margin-bottom: 20px;
 }
 
 .feedback-item {
@@ -97,6 +108,58 @@
   border-radius: 4px;
 }
 
+.pagination {
+  margin-top: 20px;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.pagination-info {
+  text-align: center;
+  margin-bottom: 15px;
+  color: #666;
+  font-size: 0.9em;
+}
+
+.pagination-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 15px;
+  flex-wrap: wrap;
+}
+
+.pagination-btn {
+  padding: 8px 16px;
+  border: 1px solid #007bff;
+  background: #007bff;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: all 0.3s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #0056b3;
+  border-color: #0056b3;
+}
+
+.pagination-btn:disabled {
+  background: #ccc;
+  border-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+#page-indicator {
+  color: #333;
+  font-weight: bold;
+  font-size: 0.9em;
+}
+
 @media (max-width: 600px) {
   .feedback-header {
     flex-direction: column;
@@ -105,6 +168,11 @@
   
   .feedback-date {
     align-self: flex-end;
+  }
+  
+  .pagination-controls {
+    flex-direction: column;
+    gap: 10px;
   }
 }
 </style>
@@ -120,99 +188,138 @@ document.addEventListener("DOMContentLoaded", () => {
   const productId = container.dataset.productId;
   const feedbackList = document.querySelector("#feedback-list");
   const noFeedback = document.querySelector("#no-feedback");
+  const pagination = document.querySelector("#pagination");
 
-  console.log('Fetching feedback for productId:', productId);
 
   if (!productId) {
     feedbackList.innerHTML = '<div class="error-message">Product ID not specified</div>';
     noFeedback.style.display = "none";
+    pagination.style.display = "none";
     console.error("Product ID is missing");
     return;
   }
 
-  // Fetch feedback for this product
-  fetch(`/apps/proxy?productId=${encodeURIComponent(productId)}`, {
-    headers: {
-      'ngrok-skip-browser-warning': true
-    }
-  })
-    .then(response => {
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
+  let currentPage = 1;
+  let totalPages = 1;
+  let totalComments = 0;
+
+  function fetchFeedback(page) {
+    feedbackList.innerHTML = '<div class="loading">Loading feedback...</div>';
+    noFeedback.style.display = "none";
+    pagination.style.display = "none";
+    
+    fetch(`/apps/proxy?productId=${encodeURIComponent(productId)}&page=${page}&limit=3`, {
+      headers: { 'ngrok-skip-browser-warning': true }
     })
-    .then(data => {
-      console.log('Received data:', data);
-      if (data && typeof data === 'object') {
-        if (data.success && Array.isArray(data.feedback)) {
-          if (data.feedback.length > 0) {
-            displayFeedback(data.feedback);
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        console.log('Received data:', data);
+        
+        if (data && typeof data === 'object' && data.success) {
+          if (Array.isArray(data.feedback)) {
+            totalComments = data.totalComments || 0;
+            totalPages = data.totalPages || 1;
+            currentPage = data.currentPage || 1;
+            
+            if (data.feedback.length > 0) {
+              displayFeedbackPage(data.feedback);
+              updatePagination();
+            } else {
+              showNoFeedback();
+            }
           } else {
-            showNoFeedback();
+            throw new Error('Feedback data is not an array');
           }
         } else {
-          feedbackList.innerHTML = `<div class="error-message">Error: ${data.error || 'Invalid response format'}</div>`;
-          noFeedback.style.display = "none";
-          console.error('Invalid response:', data);
+          throw new Error(data.error || 'Invalid response format');
         }
-      } else {
-        throw new Error('Response is not a valid JSON object');
-      }
-    })
-    .catch(error => {
-      console.error("Error fetching feedback:", error);
-      feedbackList.innerHTML = '<div class="error-message">Error loading feedback. Please try again later.</div>';
-      noFeedback.style.display = "none";
-    });
-});
+      })
+      .catch(error => {
+        console.error("Error fetching feedback:", error);
+        feedbackList.innerHTML = `<div class="error-message">Failed to load feedback: ${error.message}. Please try again.</div>`;
+        noFeedback.style.display = "none";
+        pagination.style.display = "none";
+      });
+  }
 
-function displayFeedback(feedbackArray) {
-  const feedbackList = document.querySelector("#feedback-list");
-  const noFeedback = document.querySelector("#no-feedback");
-  
-  noFeedback.style.display = "none";
-  feedbackList.style.display = "block";
-  feedbackList.innerHTML = "";
-
-  feedbackArray.forEach(feedback => {
-    console.log('Processing feedback item:', feedback);
-    const feedbackItem = document.createElement("div");
-    feedbackItem.className = "feedback-item";
+  function displayFeedbackPage(feedback) {
+    feedbackList.style.display = "block";
+    feedbackList.innerHTML = "";
     
-    const date = new Date(feedback.createdAt);
-    const formattedDate = isNaN(date.getTime())
-      ? 'Invalid date'
-      : date.toLocaleDateString() + " " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    
-    feedbackItem.innerHTML = `
-      <div class="feedback-header">
-        <div>
-          <div class="feedback-name">${escapeHtml(feedback.name || '')}</div>
-          <div class="feedback-email">${escapeHtml(feedback.email || '')}</div>
+    feedback.forEach(item => {
+      const feedbackItem = document.createElement("div");
+      feedbackItem.className = "feedback-item";
+      const date = new Date(item.createdAt);
+      const formattedDate = isNaN(date.getTime())
+        ? 'Invalid date'
+        : date.toLocaleDateString() + " " + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+      feedbackItem.innerHTML = `
+        <div class="feedback-header">
+          <div>
+            <div class="feedback-name">${escapeHtml(item.name || '')}</div>
+            <div class="feedback-email">${escapeHtml(item.email || '')}</div>
+          </div>
+          <div class="feedback-date">${formattedDate}</div>
         </div>
-        <div class="feedback-date">${formattedDate}</div>
-      </div>
-      <div class="feedback-comment">${escapeHtml(feedback.comment || '')}</div>
-    `;
+        <div class="feedback-comment">${escapeHtml(item.comment || '')}</div>
+      `;
+      feedbackList.appendChild(feedbackItem);
+    });
     
-    feedbackList.appendChild(feedbackItem);
+    if (totalPages > 1) {
+      pagination.style.display = "block";
+    } else {
+      pagination.style.display = "none";
+    }
+  }
+
+  function updatePagination() {
+    const paginationText = document.querySelector("#pagination-text");
+    const pageIndicator = document.querySelector("#page-indicator");
+    const prevBtn = document.querySelector("#prev-page");
+    const nextBtn = document.querySelector("#next-page");
+
+    const startComment = (currentPage - 1) * 3 + 1;
+    const endComment = Math.min(currentPage * 3, totalComments);
+
+    paginationText.textContent = `Showing ${startComment}-${endComment} of ${totalComments} comments`;
+    pageIndicator.textContent = `Page ${currentPage} of ${totalPages}`;
+
+    prevBtn.disabled = currentPage === 1;
+    nextBtn.disabled = currentPage === totalPages;
+  }
+
+  function showNoFeedback() {
+    feedbackList.style.display = "none";
+    noFeedback.style.display = "block";
+    pagination.style.display = "none";
+  }
+
+  function escapeHtml(text) {
+    const div = document.createElement("div");
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  document.getElementById('prev-page').addEventListener('click', () => {
+    if (currentPage > 1) {
+      fetchFeedback(currentPage - 1);
+    }
   });
-}
-
-function showNoFeedback() {
-  const feedbackList = document.querySelector("#feedback-list");
-  const noFeedback = document.querySelector("#no-feedback");
   
-  feedbackList.style.display = "none";
-  noFeedback.style.display = "block";
-}
+  document.getElementById('next-page').addEventListener('click', () => {
+    if (currentPage < totalPages) {
+      fetchFeedback(currentPage + 1);
+    }
+  });
 
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
+  fetchFeedback(1);
+});
 </script>
 
 {% schema %}

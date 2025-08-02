@@ -13,6 +13,9 @@
       <label for="comment">Comment</label>
       <textarea id="comment" name="comment" required></textarea>
     </div>
+    <div class="form-group">
+      <div class="g-recaptcha" data-sitekey="6Lesa5grAAAAAE3KuJJXOP7olyX3pYugSGSHaZFw"></div>
+    </div>
     <button type="submit">Submit Feedback</button>
     <p id="form-message" class="form-message"></p>
   </form>
@@ -58,6 +61,10 @@ button {
 button:hover {
   background: #0056b3;
 }
+button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
 .form-message {
   margin-top: 10px;
   color: #28a745;
@@ -65,8 +72,13 @@ button:hover {
 .form-message.error {
   color: #dc3545;
 }
+.recaptcha-error {
+  color: #dc3545;
+  font-size: 0.9em;
+  margin-top: 5px;
+}
 </style>
-
+<script src="https://www.google.com/recaptcha/api.js" async defer></script>
 <script>
 document.addEventListener("DOMContentLoaded", () => {
   const form = document.querySelector("#feedback-form");
@@ -79,13 +91,24 @@ document.addEventListener("DOMContentLoaded", () => {
       const comment = form.querySelector("#comment").value.trim();
       const messageEl = form.querySelector("#form-message");
 
+      messageEl.textContent = '';
+      messageEl.classList.remove('error');
+
       if (!name || !email || !comment) {
         messageEl.textContent = "All fields are required.";
         messageEl.classList.add("error");
         return;
       }
+
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         messageEl.textContent = "Invalid email format.";
+        messageEl.classList.add("error");
+        return;
+      }
+
+      const recaptchaResponse = grecaptcha.getResponse();
+      if (!recaptchaResponse) {
+        messageEl.textContent = "Please complete the reCAPTCHA verification.";
         messageEl.classList.add("error");
         return;
       }
@@ -94,11 +117,14 @@ document.addEventListener("DOMContentLoaded", () => {
       const originalButtonText = submitButton.textContent;
       submitButton.disabled = true;
       submitButton.textContent = 'Submitting...';
-      messageEl.textContent = '';
-      messageEl.classList.remove('error');
 
-      const requestData = { productId, name, email, comment };
-      console.log('Sending data:', requestData);
+      const requestData = { 
+        productId, 
+        name, 
+        email, 
+        comment, 
+        recaptchaResponse 
+      };
 
       try {
         const response = await fetch('/apps/proxy', {
@@ -126,6 +152,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (result.success) {
           messageEl.textContent = "Feedback submitted successfully!";
           form.reset();
+          grecaptcha.reset(); 
         } else {
           throw new Error(result.error || "Error submitting feedback.");
         }
@@ -136,6 +163,7 @@ document.addEventListener("DOMContentLoaded", () => {
         });
         messageEl.textContent = error.message || 'An unexpected error occurred';
         messageEl.classList.add("error");
+        grecaptcha.reset();
       } finally {
         submitButton.disabled = false;
         submitButton.textContent = originalButtonText;
